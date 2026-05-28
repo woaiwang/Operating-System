@@ -206,6 +206,8 @@ void           format(void);
 void           close(int fd);
 void           halt(void);
 void           delete(const char *name);
+int            run_all_tests(void);
+int            file_main(void);
 
 #ifdef __cplusplus
 }
