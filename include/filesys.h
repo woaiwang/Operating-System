@@ -206,6 +206,7 @@ void           format(void);
 void           close(int fd);
 void           halt(void);
 void           delete(const char *name);
+void           init_root_dir(void);
 int            run_all_tests(void);
 int            file_main(void);
 

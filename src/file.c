@@ -63,22 +63,35 @@ int file_main(void) {
 
         } else if (strcmp(cmd, "format") == 0) {
             format();
-            cur_path_inode = iget(1);
+            init_root_dir();
             need_init = 0;
-            printf("Filesystem formatted.\n");
+            printf("Filesystem formatted and root directory initialized.\n");
 
         } else if (strcmp(cmd, "install") == 0) {
-            if (!need_init) halt();
+            if (!need_init) {
+                printf("Filesystem already initialized. Use 'halt' first.\n");
+                continue;
+            }
             install();
             cur_path_inode = iget(1);
-            if (cur_path_inode)
-                dir.size = 0;
+            if (cur_path_inode) {
+                int i, j;
+                memset(&dir, 0, sizeof(dir));
+                j = 0;
+                for (i = 0; i < (int)(cur_path_inode->di_size / BLOCKSIZ) + 1; i++) {
+                    if (cur_path_inode->di_addr[i] == 0) continue;
+                    fseek(fd, DATASTART + (long)cur_path_inode->di_addr[i] * BLOCKSIZ, SEEK_SET);
+                    fread(&dir.direct[j], 1, BLOCKSIZ, fd);
+                    j += BLOCKSIZ / (DIRSIZ + 2);
+                }
+                dir.size = (int)(cur_path_inode->di_size / (DIRSIZ + 2));
+            }
             need_init = 0;
             printf("Filesystem mounted.\n");
 
         } else if (strcmp(cmd, "halt") == 0) {
             halt();
-            running = 0;
+            /* unreachable: halt() calls exit(0) */
 
         } else if (strcmp(cmd, "dir") == 0) {
             if (cur_path_inode)

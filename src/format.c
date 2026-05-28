@@ -100,3 +100,56 @@ void format(void) {
 
     debug_log("format: done. image=%s (%ld bytes)\n", DISK_IMAGE, disk_bytes);
 }
+
+void init_root_dir(void) {
+    struct inode *root;
+    unsigned int root_block;
+
+    root = iget(1);
+    if (!root) {
+        printf("init_root_dir: cannot get root inode\n");
+        return;
+    }
+
+    root->di_mode   = DIDIR | DEFAULTMODE;
+    root->di_uid    = 0;
+    root->di_gid    = 0;
+    root->di_number = 1;
+
+    root_block = balloc();
+    if (root_block == DISKFULL) {
+        printf("init_root_dir: disk full\n");
+        iput(root);
+        return;
+    }
+
+    root->di_addr[0] = root_block;
+    root->di_size = (unsigned short)(2 * (DIRSIZ + 2));
+
+    /* write "." and ".." directory entries to disk */
+    {
+        struct direct dbuf[BLOCKSIZ / (DIRSIZ + 2)];
+        memset(dbuf, 0, sizeof(dbuf));
+        strcpy(dbuf[0].d_name, ".");
+        dbuf[0].d_ino = 1;
+        strcpy(dbuf[1].d_name, "..");
+        dbuf[1].d_ino = 1;
+        fseek(fd, DATASTART + (long)root_block * BLOCKSIZ, SEEK_SET);
+        fwrite(dbuf, 1, BLOCKSIZ, fd);
+    }
+
+    /* initialize in-memory directory with "." and ".." */
+    memset(&dir, 0, sizeof(dir));
+    memset(dir.direct[0].d_name, 0, DIRSIZ);
+    dir.direct[0].d_name[0] = '.';
+    dir.direct[0].d_ino = 1;
+    memset(dir.direct[1].d_name, 0, DIRSIZ);
+    dir.direct[1].d_name[0] = '.';
+    dir.direct[1].d_name[1] = '.';
+    dir.direct[1].d_ino = 1;
+    dir.size = 2;
+
+    cur_path_inode = root;  /* transfer reference to global */
+
+    debug_log("init_root_dir: root initialized, block=%u\n", root_block);
+}
