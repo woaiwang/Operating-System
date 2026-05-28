@@ -33,6 +33,7 @@ static void show_help(void) {
 }
 
 int file_main(void) {
+    char line[256];
     char cmd[64];
     char arg1[128];
     char arg2[256];
@@ -47,16 +48,17 @@ int file_main(void) {
         printf("\nfs> ");
         fflush(stdout);
 
-        if (!fgets(cmd, sizeof(cmd), stdin)) break;
+        if (!fgets(line, sizeof(line), stdin)) break;
 
         /* strip newline */
-        cmd[strcspn(cmd, "\n")] = '\0';
-        if (cmd[0] == '\0') continue;
+        line[strcspn(line, "\n")] = '\0';
+        if (line[0] == '\0') continue;
 
         /* parse command */
+        cmd[0] = '\0';
         arg1[0] = '\0';
         arg2[0] = '\0';
-        sscanf(cmd, "%s %s %[^\n]", cmd, arg1, arg2);
+        sscanf(line, "%63s %127s %255[^\n]", cmd, arg1, arg2);
 
         if (strcmp(cmd, "help") == 0) {
             show_help();
