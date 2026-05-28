@@ -1,11 +1,12 @@
 #include "filesys.h"
 
 /*
- * close: close a file descriptor for the current user.
+ * close: 关闭当前用户的文件描述符
  *
- * Original bug fix:
- *  - The original decremented f_count to a potentially negative value
- *    without checking.  We only decrement if f_count > 0.
+ * 原始 bug 修复：
+ *  - 原来的代码不检查就递减 f_count，可能导致负值
+ *    现在仅当 f_count > 0 时才递减
+ *  - 增加参数合法性检查
  */
 void close(int fd) {
     unsigned short sys_no;

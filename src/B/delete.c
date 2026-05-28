@@ -3,15 +3,15 @@
 #include <stdio.h>
 
 /*
- * delete: remove a file from the current directory.
+ * delete: 从当前目录中删除一个文件
  *
- * Clears the directory entry, then decrements the link count.
- * When it reaches 0, iput() will free the blocks and the inode.
+ * 清除目录项，然后递减链接计数
+ * 当链接计数降为 0 时，iput() 将释放数据块和 inode
  *
- * Original bug fixes:
- *  - Added NULL check for namei result.
- *  - Added directory entry cleanup (missing in original — the
- *    name would remain in the directory after deletion).
+ * 原始 bug 修复：
+ *  - 增加对 namei 返回值的 NULL 检查
+ *  - 增加目录项清理（原代码缺失 — 删除后文件名仍残留在目录中）
+ *  - 修复 di_number 递减时的下溢风险
  */
 void delete(const char *name) {
     unsigned int dinodeid;
@@ -20,11 +20,11 @@ void delete(const char *name) {
 
     dinodeid = namei(name);
     if (dinodeid == 0) {
-        printf("\ndelete: file not found\n");
+        printf("\ndelete: 文件未找到\n");
         return;
     }
 
-    /* clear the directory entry */
+    /* 清除目录项 */
     for (i = 0; i < dir.size; i++) {
         if (dir.direct[i].d_ino == dinodeid &&
             strcmp(dir.direct[i].d_name, name) == 0) {
