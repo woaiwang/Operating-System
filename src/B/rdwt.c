@@ -2,20 +2,20 @@
 #include <stdio.h>
 
 /*
- * fs_read: read from a file.
+ * fs_read: 从文件中读取数据
  *
- * Ported from orig/rdwt.c.  Reads up to 'size' bytes from the file
- * at the current offset.  Returns the number of bytes actually read.
+ * 从当前偏移量开始，最多读取 size 字节到 buf 中
+ * 返回实际读取的字节数
  *
- * Renamed from read() to avoid collision with libc read().
- * Parameter 'fd' (file descriptor) renamed to 'fildes' to avoid
- * shadowing the global FILE *fd.
+ * 命名说明：
+ *  - 函数名从 read 改为 fs_read，避免与 libc 的 read() 冲突
+ *  - 参数名从 fd 改为 fildes，避免与全局 FILE *fd 冲突
  *
- * Original bug fixes:
- *  - fd parameter (local) shadowed global FILE *fd, causing disk
- *    reads to use the wrong file pointer.  Renamed to fildes.
- *  - The final partial-block read used an uninitialised block index
- *    in some edge cases.  Restructured the logic.
+ * 原始 bug 修复：
+ *  - fd 参数遮蔽了全局 FILE *fd，导致磁盘读写使用错误的文件指针
+ *    已重命名为 fildes
+ *  - 某些边界情况下最后一个非完整块使用了未初始化的块索引
+ *    已重构逻辑
  */
 unsigned int fs_read(int fildes, char *buf, unsigned int size) {
     unsigned long off;
@@ -31,7 +31,7 @@ unsigned int fs_read(int fildes, char *buf, unsigned int size) {
     if (sys_no == SYSOPENFILE + 1 || sys_no >= SYSOPENFILE) return 0;
 
     if (!(sys_ofile[sys_no].f_flag & FREAD)) {
-        printf("\nthe file is not opened for read\n");
+        printf("\n文件未以读模式打开\n");
         return 0;
     }
 
@@ -47,10 +47,12 @@ unsigned int fs_read(int fildes, char *buf, unsigned int size) {
     block_off = (unsigned int)(off % BLOCKSIZ);
     block_idx = (int)(off / BLOCKSIZ);
 
-    /* first partial block */
+    /* 第一个非完整块 */
     if (block_off > 0) {
         unsigned int chunk = BLOCKSIZ - block_off;
         if (chunk > size) chunk = size;
+        /* 检查块是否已分配 */
+        if (inode->di_addr[block_idx] == 0) return (unsigned int)(dst - buf);
         fseek(fd, DATASTART + (long)inode->di_addr[block_idx] * BLOCKSIZ + block_off, SEEK_SET);
         fread(dst, 1, chunk, fd);
         dst += chunk;
@@ -58,17 +60,20 @@ unsigned int fs_read(int fildes, char *buf, unsigned int size) {
         block_idx++;
     }
 
-    /* full blocks */
+    /* 完整块 */
     nblocks = (int)(size / BLOCKSIZ);
     for (i = 0; i < nblocks; i++) {
+        if (inode->di_addr[block_idx + i] == 0) break;
         fseek(fd, DATASTART + (long)inode->di_addr[block_idx + i] * BLOCKSIZ, SEEK_SET);
         fread(dst, 1, BLOCKSIZ, fd);
         dst += BLOCKSIZ;
         size -= BLOCKSIZ;
     }
 
-    /* final partial block */
+    /* 最后一个非完整块 */
     if (size > 0) {
+        if (inode->di_addr[block_idx + nblocks] == 0)
+            return (unsigned int)(dst - buf);
         fseek(fd, DATASTART + (long)inode->di_addr[block_idx + nblocks] * BLOCKSIZ, SEEK_SET);
         fread(dst, 1, size, fd);
         dst += size;
@@ -79,19 +84,19 @@ unsigned int fs_read(int fildes, char *buf, unsigned int size) {
 }
 
 /*
- * fs_write: write to a file.
+ * fs_write: 向文件中写入数据
  *
- * Ported from orig/rdwt.c.  Writes up to 'size' bytes to the file
- * at the current offset.  Allocates new blocks as needed.
- * Returns the number of bytes actually written.
+ * 从当前偏移量开始，写入最多 size 字节
+ * 按需分配新数据块，返回实际写入的字节数
  *
- * Renamed from write() to avoid collision with libc write().
- * Parameter 'fd' renamed to 'fildes' to avoid shadowing global FILE *fd.
+ * 命名说明：
+ *  - 函数名从 write 改为 fs_write，避免与 libc 的 write() 冲突
+ *  - 参数名从 fd 改为 fildes，避免与全局 FILE *fd 冲突
  *
- * Original bug fixes:
- *  - Same fd shadowing issue as fs_read.
- *  - The original's block indexing for partial writes was wrong
- *    when data spanned multiple blocks.
+ * 原始 bug 修复：
+ *  - 与 fs_read 相同的 fd 遮蔽问题
+ *  - 原来跨多块的部分写入时块索引计算有误，已修复
+ *  - 增加对未分配块的检查，防止写入到无效位置
  */
 unsigned int fs_write(int fildes, const char *buf, unsigned int size) {
     unsigned long off;
@@ -108,7 +113,7 @@ unsigned int fs_write(int fildes, const char *buf, unsigned int size) {
     if (sys_no == SYSOPENFILE + 1 || sys_no >= SYSOPENFILE) return 0;
 
     if (!(sys_ofile[sys_no].f_flag & FWRITE)) {
-        printf("\nthe file is not opened for write\n");
+        printf("\n文件未以写模式打开\n");
         return 0;
     }
 
@@ -121,9 +126,9 @@ unsigned int fs_write(int fildes, const char *buf, unsigned int size) {
     block_off = (unsigned int)(off % BLOCKSIZ);
     block_idx = (int)(off / BLOCKSIZ);
 
-    /* ensure the current block is allocated */
+    /* 确保当前块已分配 */
     if (block_idx >= NADDR) {
-        printf("\nfile too large\n");
+        printf("\n文件过大\n");
         return 0;
     }
     if (inode->di_addr[block_idx] == 0) {
@@ -132,7 +137,7 @@ unsigned int fs_write(int fildes, const char *buf, unsigned int size) {
         inode->di_addr[block_idx] = blk;
     }
 
-    /* first partial block */
+    /* 第一个非完整块 */
     if (block_off > 0) {
         unsigned int chunk = BLOCKSIZ - block_off;
         if (chunk > size) chunk = size;
@@ -144,7 +149,7 @@ unsigned int fs_write(int fildes, const char *buf, unsigned int size) {
         block_idx++;
     }
 
-    /* full blocks */
+    /* 完整块 */
     nblocks = (int)(size / BLOCKSIZ);
     for (i = 0; i < nblocks; i++) {
         if (block_idx + i >= NADDR) break;
@@ -163,7 +168,7 @@ unsigned int fs_write(int fildes, const char *buf, unsigned int size) {
         total_written += BLOCKSIZ;
     }
 
-    /* final partial block */
+    /* 最后一个非完整块 */
     if (size > 0) {
         int final_idx = block_idx + nblocks;
         if (final_idx >= NADDR) {
