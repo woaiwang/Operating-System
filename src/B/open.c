@@ -1,65 +1,139 @@
-#include "filesys.h"
-#include <stdio.h>
-
-/*
- * aopen: 为当前用户打开一个文件
- * 返回用户文件描述符索引，失败返回 0
+/**
+ * =========================================================================
+ * open.c — 文件打开模块（任务B：文件操作层）
+ * =========================================================================
  *
- * 原始 bug 修复：
- *  - 反转的条件："if (dinodeid != NULL)" 应检查
- *    "if (dinodeid == 0)"（文件不存在）
- *  - u_ofile[j] 错误地设为 1 而非系统打开文件表索引 i
- *  - 失败时返回 0（而非 NULL），与 unsigned short 类型一致
- *  - namei() 现在返回 d_ino 而非目录索引
- *  - 修复 FAPPEND 模式：原来错误地截断了文件（释放所有数据块），
- *    现在 FAPPEND 仅将偏移量定位到文件末尾，保留已有数据
+ * 本模块实现已存在文件的打开操作。与 creat 不同，open 不创建新文件，
+ * 仅建立用户文件描述符到已存在 inode 的映射。
+ *
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │                    任务A（底层）依赖关系                              │
+ * ├─────────────────────────────────────────────────────────────────────┤
+ * │ 依赖项            │ 定义位置          │ 说明                          │
+ * ├────────────────────┼───────────────────┼──────────────────────────────┤
+ * │ namei(name)        │ src/B/name.c:46   │ 任务B：按文件名查inode号      │
+ * ├────────────────────┼───────────────────┼──────────────────────────────┤
+ * │ access(ino,mode)   │ src/B/access.c    │ 任务B：权限检查               │
+ * ├────────────────────┼───────────────────┼──────────────────────────────┤
+ * │ iget(dinodeid)     │ src/inode.c:25    │ 任务A：获取内存inode          │
+ * │                    │                   │ 先在hinode哈希链中查找        │
+ * │                    │                   │ 未命中则从磁盘dinode表读取    │
+ * ├────────────────────┼───────────────────┼──────────────────────────────┤
+ * │ iput(inode)        │ src/inode.c:99    │ 任务A：释放inode引用          │
+ * ├────────────────────┼───────────────────┼──────────────────────────────┤
+ * │ sys_ofile[]        │ src/globals.c:14  │ 任务A：系统打开文件表         │
+ * │ user[]             │ src/globals.c:20  │ 任务A：用户表                 │
+ * │ user_id            │ src/globals.c:26  │ 任务A：当前用户索引           │
+ * └────────────────────┴───────────────────┴──────────────────────────────┘
+ *
+ * 打开模式（include/filesys.h）：
+ *   FREAD=00001   只读打开
+ *   FWRITE=00002  只写打开
+ *   FAPPEND=00004 追加模式（偏移量定位到文件末尾，保留已有数据）
+ *
+ * 注意：FAPPEND 的历史 bug — 原代码在追加模式下错误地截断了文件
+ *   （调用 bfree 释放所有块 + 将 di_size 置零）。
+ *   现已修复：FAPPEND 仅将 f_off 设置为 di_size，保留已有数据不变。
+ */
+
+#include "filesys.h"   /* 所有结构体、常量、全局变量声明 */
+#include <stdio.h>     /* printf() */
+
+/**
+ * aopen — 打开一个已存在的文件
+ * @name: 文件名（在当前目录中）
+ * @mode: 打开模式（FREAD=1 / FWRITE=2 / FAPPEND=4，可位或组合）
+ * @return: 用户文件描述符（>=1），失败返回 0
+ *
+ * 函数名为 aopen 而非 open，避免与 POSIX open() 冲突。
+ * 失败返回 0 而非 -1：0 不是有效 fd（fd 从 1 开始分配，0 保留为失败标志）。
  */
 unsigned short aopen(const char *name, unsigned int mode) {
-    unsigned int dinodeid;
-    struct inode *inode;
-    int i, j;
+    unsigned int dinodeid;                   /* namei() 返回的 inode 号 */
+    struct inode *inode;                     /* 内存 inode 指针 */
+    int i, j;                                /* i: sys_ofile索引, j: 用户fd索引 */
 
-    dinodeid = namei(name);
-    if (dinodeid == 0) {
+    /* ═══════════════════════════════════════════════════════════════════
+     * 步骤1: 查找文件
+     * ═══════════════════════════════════════════════════════════════════ */
+    dinodeid = namei(name);                  /* [任务B] 在当前目录中按文件名查找 */
+                                             /* 返回 d_ino（磁盘inode号），未找到返回 0 */
+    if (dinodeid == 0) {                     /* 文件不存在 */
+        /* 原始 bug：原代码是 if(dinodeid != NULL)，条件反转导致 */
+        /* 文件存在时报"不存在"，文件不存在时反而继续操作（崩溃） */
         printf("\n文件不存在！\n");
-        return 0;
+        return 0;                            /* 返回 0 表示失败 */
     }
 
-    inode = iget(dinodeid);
-    if (!inode) return 0;
+    /* ═══════════════════════════════════════════════════════════════════
+     * 步骤2: 获取内存 inode 并检查权限
+     * ═══════════════════════════════════════════════════════════════════ */
+    inode = iget(dinodeid);                  /* [任务A] 通过 inode 号获取内存 inode */
+                                             /* iget 先在哈希链中查找，未命中则从磁盘读取 dinode */
+    if (!inode) return 0;                    /* iget 失败（磁盘错误等） */
 
-    if (!access(inode->i_ino, mode)) {
+    if (!access(inode->i_ino, mode)) {       /* [任务B] 检查当前用户对文件的访问权限 */
+                                             /* mode 同时包含读/写位，access 会检查对应权限 */
         printf("\n文件打开权限不足！\n");
-        iput(inode);
+        iput(inode);                         /* [任务A] 释放 inode 引用 */
         return 0;
     }
 
-    /* 分配系统打开文件表槽位 */
-    for (i = 1; i < SYSOPENFILE; i++)
-        if (sys_ofile[i].f_count == 0) break;
-    if (i == SYSOPENFILE) {
+    /* ═══════════════════════════════════════════════════════════════════
+     * 步骤3: 分配系统打开文件表槽位
+     * ═══════════════════════════════════════════════════════════════════ */
+    /* 从索引 1 开始（索引 0 保留给特殊用途） */
+    for (i = 1; i < SYSOPENFILE; i++)        /* 遍历 sys_ofile[]（共40项） */
+        if (sys_ofile[i].f_count == 0) break; /* f_count==0 表示该槽位空闲 */
+    if (i == SYSOPENFILE) {                  /* 系统打开文件表已满 */
         printf("\n系统打开文件表已满\n");
-        iput(inode);
+        iput(inode);                         /* [任务A] 释放 inode */
         return 0;
     }
-    sys_ofile[i].f_inode = inode;
-    sys_ofile[i].f_flag  = (char)mode;
-    sys_ofile[i].f_count = 1;
-    /* 追加模式：偏移量定位到文件末尾；普通模式：从头开始 */
+
+    /* 填充系统打开文件表项 */
+    sys_ofile[i].f_inode = inode;            /* 指向文件 inode */
+    sys_ofile[i].f_flag  = (char)mode;       /* 保存打开模式（FREAD/FWRITE/FAPPEND） */
+    sys_ofile[i].f_count = 1;                /* 引用计数 = 1 */
+    /* 偏移量：FAPPEND 模式下定位到文件末尾，否则从 0 开始 */
     sys_ofile[i].f_off   = (mode & FAPPEND) ? inode->di_size : 0;
+    /*                        ^^^^^^^^          ^^^^^^^^^^^^^^
+     *                        位与检查           文件当前大小（字节）
+     *                        FAPPEND 位是否设置  追加模式下从此处开始写 */
 
-    /* 分配用户文件描述符（从 1 开始，fd=0 表示失败） */
-    for (j = 1; j < NOFILE; j++)
+    /* ═══════════════════════════════════════════════════════════════════
+     * 步骤4: 分配用户文件描述符
+     * ═══════════════════════════════════════════════════════════════════ */
+    /* 从 fd=1 开始（fd=0 保留作为失败返回值） */
+    for (j = 1; j < NOFILE; j++)             /* NOFILE=20，每用户最多20个打开文件 */
         if (user[user_id].u_ofile[j] == SYSOPENFILE + 1) break;
-    if (j == NOFILE) {
+        /*     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         *     SYSOPENFILE+1 = 41，标记该用户fd槽位"未使用"
+         *     有效值范围：0 ~ SYSOPENFILE-1（即 0~39）指向 sys_ofile 索引 */
+    if (j == NOFILE) {                       /* 用户打开文件表已满（已达20个） */
         printf("\n用户打开文件表已满！\n");
-        sys_ofile[i].f_count = 0;
-        iput(inode);
+        sys_ofile[i].f_count = 0;            /* 回滚：释放刚分配的系统槽位 */
+        iput(inode);                         /* [任务A] 回滚：释放 inode */
         return 0;
     }
+
+    /* 建立用户fd到系统打开文件的映射 */
     user[user_id].u_ofile[j] = (unsigned short)i;
+    /* 原始 bug：原代码是 u_ofile[j] = 1，固定指向 sys_ofile[1] */
+    /* 修复为指向实际分配的系统槽位 i */
 
-    /* FAPPEND 模式：偏移量已在上面设置为文件末尾，保留已有数据不截断 */
+    /* ═══════════════════════════════════════════════════════════════════
+     * 重要修复：FAPPEND 模式的处理
+     * ═══════════════════════════════════════════════════════════════════
+     * 原始代码在 FAPPEND 模式下做了以下错误操作：
+     *   for (k = 0; k < di_size/BLOCKSIZ+1; k++)
+     *       bfree(inode->di_addr[k]);    ← 释放全部数据块！
+     *   inode->di_size = 0;              ← 文件大小归零！
+     *   inode->di_number = 0;            ← 链接计数归零！
+     * 这实际上是"截断"(truncate)而非"追加"(append)的行为。
+     * 现已移除。FAPPEND 仅将偏移量设为 di_size（已在上面完成），
+     * 后续的 fs_write 调用将从文件末尾开始写入，追加新数据。
+     */
 
-    return (unsigned short)j;
+    return (unsigned short)j;                /* 返回用户文件描述符 */
 }
