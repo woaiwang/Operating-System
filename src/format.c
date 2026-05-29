@@ -13,12 +13,15 @@ static void die(const char *msg) {
     exit(1);
 }
 
-void format(void) {
+void format(const char *image_path) {
     int i, j;
     long disk_bytes;
     int wrote;
 
-    debug_log("format: creating %s ...\n", DISK_IMAGE);
+    if (!image_path || !image_path[0])
+        image_path = "build/filesystem.img";
+
+    debug_log("format: creating %s ...\n", image_path);
 
     /* initialize inode hash before any iget/iput calls */
     for (i = 0; i < NHINO; i++)
@@ -30,7 +33,7 @@ void format(void) {
         sys_ofile[i].f_inode = NULL;
     }
 
-    /* initialize user table */
+    fd = fopen(image_path, "w+b");
     for (i = 0; i < USERNUM; i++) {
         user[i].u_uid          = 0;
         user[i].u_gid          = 0;

@@ -10,7 +10,7 @@ int run_all_tests(void) {
     puts("=== smoke test start ===");
 
     /* format creates a fresh filesystem on build/filesystem.img */
-    format();
+    format("build/filesystem.img");
 
     /* --- Test bread/bwrite --- */
     memset(buf, 0, BLOCKSIZ);

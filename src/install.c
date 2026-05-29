@@ -12,12 +12,15 @@ static void die(const char *msg) {
     exit(1);
 }
 
-void install(void) {
+void install(const char *image_path) {
     int i, j;
 
-    debug_log("install: mounting %s ...\n", DISK_IMAGE);
+    if (!image_path || !image_path[0])
+        image_path = "build/filesystem.img";
 
-    fd = fopen(DISK_IMAGE, "r+b");
+    debug_log("install: mounting %s ...\n", image_path);
+
+    fd = fopen(image_path, "r+b");
     if (!fd) die("cannot open disk image");
 
     /* read superblock from block 1 */

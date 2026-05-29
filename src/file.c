@@ -15,8 +15,8 @@
 static void show_help(void) {
     printf("\nCommands:\n");
     printf("  help                  - show this help\n");
-    printf("  format                - create a new filesystem image\n");
-    printf("  install               - mount existing filesystem image\n");
+    printf("  format [path]         - create a new filesystem image\n");
+    printf("  install [path]        - mount existing filesystem image\n");
     printf("  halt                  - unmount and exit\n");
     printf("  dir                   - list current directory\n");
     printf("  ls -l                 - list directory with details\n");
@@ -74,17 +74,28 @@ int file_main(void) {
             show_help();
 
         } else if (strcmp(cmd, "format") == 0) {
-            format();
+            if (arg1[0]) {
+                format(arg1);
+                printf("Filesystem '%s' formatted and root directory initialized.\n", arg1);
+            } else {
+                format(NULL);
+                printf("Filesystem formatted and root directory initialized.\n");
+            }
             init_root_dir();
             need_init = 0;
-            printf("Filesystem formatted and root directory initialized.\n");
 
         } else if (strcmp(cmd, "install") == 0) {
             if (!need_init) {
                 printf("Filesystem already initialized. Use 'halt' first.\n");
                 continue;
             }
-            install();
+            if (arg1[0]) {
+                install(arg1);
+                printf("Filesystem '%s' mounted.\n", arg1);
+            } else {
+                install(NULL);
+                printf("Filesystem mounted.\n");
+            }
             cur_path_inode = iget(1);
             if (cur_path_inode) {
                 int i, j;
