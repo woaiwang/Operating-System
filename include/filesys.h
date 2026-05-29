@@ -210,6 +210,19 @@ void           init_root_dir(void);
 int            run_all_tests(void);
 int            file_main(void);
 
+/* ====== C-layer (user utilities) ====== */
+void           my_pwd(void);
+void           rmdir(const char *name);
+void           cat(const char *name);
+void           clear(void);
+void           cp(const char *src, const char *dst);
+void           mv(const char *src, const char *dst);
+void           ls_long(void);
+void           find(const char *pattern);
+void           grep(const char *pattern, const char *filename);
+void           set_current_path(const char *path);
+const char    *get_current_path(void);
+
 #ifdef __cplusplus
 }
 #endif

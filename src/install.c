@@ -51,6 +51,7 @@ void install(void) {
     /* root dir inode will be loaded when iget is available */
     cur_path_inode = NULL;
     (void)dir;
+    set_current_path("/");
 
     debug_log("install: done.\n");
 }

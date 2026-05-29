@@ -19,14 +19,23 @@ static void show_help(void) {
     printf("  install               - mount existing filesystem image\n");
     printf("  halt                  - unmount and exit\n");
     printf("  dir                   - list current directory\n");
+    printf("  ls -l                 - list directory with details\n");
+    printf("  pwd                   - print current directory\n");
     printf("  mkdir <name>          - create a directory\n");
+    printf("  rmdir <name>          - remove empty directory\n");
     printf("  chdir <name>          - change directory\n");
     printf("  creat <name>          - create a file\n");
+    printf("  cat <name>            - display file content\n");
+    printf("  cp <src> <dst>        - copy file\n");
+    printf("  mv <src> <dst>        - move/rename file\n");
     printf("  open <name> [r|w|a]   - open a file\n");
     printf("  close <fd>            - close a file descriptor\n");
     printf("  read  <fd> <nbytes>   - read from a file\n");
     printf("  write <fd> <text>     - write text to a file\n");
     printf("  delete <name>         - delete a file\n");
+    printf("  find <pattern>        - search files by pattern\n");
+    printf("  grep <pattern> <file> - search pattern in file\n");
+    printf("  clear                 - clear screen\n");
     printf("  login <uid> <pwd>     - log in (simplified)\n");
     printf("  logout                - log out\n");
     printf("\n");
@@ -176,6 +185,54 @@ int file_main(void) {
         } else if (strcmp(cmd, "logout") == 0) {
             logout();
             printf("Logged out.\n");
+
+        } else if (strcmp(cmd, "pwd") == 0) {
+            my_pwd();
+
+        } else if (strcmp(cmd, "rmdir") == 0) {
+            if (arg1[0])
+                rmdir(arg1);
+            else
+                printf("Usage: rmdir <name>\n");
+
+        } else if (strcmp(cmd, "cat") == 0) {
+            if (arg1[0])
+                cat(arg1);
+            else
+                printf("Usage: cat <name>\n");
+
+        } else if (strcmp(cmd, "clear") == 0) {
+            clear();
+
+        } else if (strcmp(cmd, "cp") == 0) {
+            if (arg1[0] && arg2[0])
+                cp(arg1, arg2);
+            else
+                printf("Usage: cp <src> <dst>\n");
+
+        } else if (strcmp(cmd, "mv") == 0) {
+            if (arg1[0] && arg2[0])
+                mv(arg1, arg2);
+            else
+                printf("Usage: mv <src> <dst>\n");
+
+        } else if (strcmp(cmd, "ls") == 0) {
+            if (strcmp(arg1, "-l") == 0)
+                ls_long();
+            else
+                _dir();
+
+        } else if (strcmp(cmd, "find") == 0) {
+            if (arg1[0])
+                find(arg1);
+            else
+                printf("Usage: find <pattern>\n");
+
+        } else if (strcmp(cmd, "grep") == 0) {
+            if (arg1[0] && arg2[0])
+                grep(arg1, arg2);
+            else
+                printf("Usage: grep <pattern> <file>\n");
 
         } else {
             printf("Unknown command: %s\n", cmd);

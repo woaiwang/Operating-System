@@ -1,6 +1,7 @@
 #include "filesys.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 /*
  * _dir: list the current directory contents.
@@ -188,4 +189,28 @@ void chdir(const char *name) {
         j += BLOCKSIZ / (DIRSIZ + 2);
     }
     dir.size = j;
+
+    /* update current path */
+    const char *current = get_current_path();
+    char new_path[512];
+    
+    if (strcmp(name, "..") == 0) {
+        char *last_slash = strrchr(current, '/');
+        if (last_slash && last_slash != current) {
+            *last_slash = '\0';
+            strcpy(new_path, current);
+            *last_slash = '/';
+        } else {
+            strcpy(new_path, "/");
+        }
+    } else if (strcmp(name, ".") == 0) {
+        strcpy(new_path, current);
+    } else {
+        if (strcmp(current, "/") == 0) {
+            snprintf(new_path, sizeof(new_path), "/%s", name);
+        } else {
+            snprintf(new_path, sizeof(new_path), "%s/%s", current, name);
+        }
+    }
+    set_current_path(new_path);
 }

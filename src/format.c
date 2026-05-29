@@ -150,6 +150,7 @@ void init_root_dir(void) {
     dir.size = 2;
 
     cur_path_inode = root;  /* transfer reference to global */
+    set_current_path("/");
 
     debug_log("init_root_dir: root initialized, block=%u\n", root_block);
 }

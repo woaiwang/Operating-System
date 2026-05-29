@@ -29,7 +29,7 @@ make clean && make
 ./build/fs.exe
 
 # 直接用 gcc（不需要 make）
-gcc -std=c99 -Wall -Wextra -Iinclude src/*.c -o build/fs.exe
+gcc -std=c99 -Wall -Wextra -Iinclude src/*.c src/B/*.c src/C/*.c -o build/fs.exe
 ```
 
 ### 调试模式
@@ -37,7 +37,7 @@ gcc -std=c99 -Wall -Wextra -Iinclude src/*.c -o build/fs.exe
 编译时加 `-DFS_DEBUG` 开启调试输出：
 
 ```bash
-gcc -std=c99 -Wall -Wextra -DFS_DEBUG -Iinclude src/*.c -o build/fs.exe
+gcc -std=c99 -Wall -Wextra -DFS_DEBUG -Iinclude src/*.c src/B/*.c src/C/*.c -o build/fs.exe
 ```
 
 ---
@@ -48,18 +48,51 @@ gcc -std=c99 -Wall -Wextra -DFS_DEBUG -Iinclude src/*.c -o build/fs.exe
 
 ```
 fs> format                # 创建新的文件系统
+fs> pwd                   # 显示当前路径
 fs> dir                   # 列出当前目录
+fs> ls -l                 # 列出目录（详细信息）
 fs> mkdir testdir         # 创建子目录
 fs> chdir testdir         # 切换目录
 fs> creat myfile          # 创建文件
 fs> write 1 "hello"       # 写入文件
-fs> read 1 5              # 读取文件
-fs> close 1               # 关闭文件
-fs> delete myfile         # 删除文件
+fs> cat myfile            # 查看文件内容
+fs> cp myfile copy.txt    # 复制文件
+fs> mv copy.txt renamed.txt # 移动/重命名文件
+fs> find "myfile"         # 搜索文件
+fs> grep "hello" myfile   # 在文件中搜索字符串
+fs> rmdir testdir         # 删除空目录
+fs> clear                 # 清屏
 fs> halt                  # 退出
 ```
 
-完整命令列表：`help`, `format`, `install`, `halt`, `dir`, `mkdir`, `chdir`, `creat`, `open`, `close`, `read`, `write`, `delete`, `login`, `logout`
+完整命令列表：
+
+| 命令 | 功能 |
+|------|------|
+| `help` | 显示帮助信息 |
+| `format` | 创建新的文件系统镜像 |
+| `install` | 挂载已有的文件系统镜像 |
+| `halt` | 卸载并退出 |
+| `pwd` | 显示当前工作目录 |
+| `dir` | 列出当前目录内容 |
+| `ls -l` | 列出目录内容（详细信息） |
+| `mkdir <name>` | 创建子目录 |
+| `rmdir <name>` | 删除空目录 |
+| `chdir <name>` | 切换目录 |
+| `creat <name>` | 创建文件 |
+| `open <name> [r\|w\|a]` | 打开文件 |
+| `close <fd>` | 关闭文件描述符 |
+| `read <fd> <nbytes>` | 从文件读取数据 |
+| `write <fd> <text>` | 向文件写入数据 |
+| `cat <name>` | 显示文件内容 |
+| `cp <src> <dst>` | 复制文件 |
+| `mv <src> <dst>` | 移动/重命名文件 |
+| `delete <name>` | 删除文件 |
+| `find <pattern>` | 搜索文件 |
+| `grep <pattern> <file>` | 在文件中搜索字符串 |
+| `clear` | 清屏 |
+| `login <uid> <pwd>` | 用户登录 |
+| `logout` | 用户注销 |
 
 ---
 
@@ -80,14 +113,27 @@ Operating-System/
 │   ├── halt.c            # 写回超级块 + 关闭镜像
 │   ├── name.c            # 目录中按名查找/存储（namei/iname）
 │   ├── access.c          # 权限检查（user → group → other）
-│   ├── open.c            # 打开文件（aopen）
-│   ├── close.c           # 关闭文件
-│   ├── creat.c           # 创建文件
-│   ├── delete.c          # 删除文件
-│   ├── dir.c             # 列目录、mkdir、chdir
-│   ├── rdwt.c            # 文件读写（fs_read/fs_write）
+│   ├── dir.c             # 列目录、mkdir、chdir、路径管理
 │   ├── log.c             # 用户登录/注销
-│   └── file.c            # 交互式命令 Shell
+│   ├── file.c            # 交互式命令 Shell
+│   ├── B/                # B 层 - 文件操作
+│   │   ├── open.c        # 打开文件（aopen）
+│   │   ├── close.c       # 关闭文件
+│   │   ├── creat.c       # 创建文件
+│   │   ├── delete.c      # 删除文件
+│   │   ├── name.c        # 路径名解析（namei/iname）
+│   │   ├── access.c      # 权限检查
+│   │   └── rdwt.c        # 文件读写（fs_read/fs_write）
+│   └── C/                # C 层 - 用户工具
+│       ├── pwd.c         # 显示当前路径
+│       ├── rmdir.c       # 删除空目录
+│       ├── cat.c         # 显示文件内容
+│       ├── clear.c       # 清屏
+│       ├── cp.c          # 文件复制
+│       ├── mv.c          # 文件移动/重命名
+│       ├── ls.c          # 详细列表（ls -l）
+│       ├── find.c        # 文件搜索
+│       └── grep.c        # 内容搜索
 ├── orig/                 # 原始教师参考代码（不编译，有 30 处 bug）
 ├── build/
 │   └── filesystem.img    # 磁盘镜像（运行时生成）
@@ -169,15 +215,24 @@ logout test:                   PASS
 | A 层 | `format.c` | 创建磁盘镜像 + 根目录初始化 | ✅ |
 | A 层 | `install.c` | 挂载已有磁盘镜像 | ✅ |
 | A 层 | `halt.c` | 写回超级块、关闭镜像 | ✅ |
-| B 层 | `name.c` | 目录按名查找/存储 | ✅ |
-| B 层 | `access.c` | 权限检查 | ✅ |
-| B 层 | `open.c` | 打开文件 | ✅ |
-| B 层 | `close.c` | 关闭文件 | ✅ |
-| B 层 | `creat.c` | 创建文件 | ✅ |
-| B 层 | `delete.c` | 删除文件 | ✅ |
-| B 层 | `dir.c` | 列目录、mkdir、chdir | ✅ |
-| B 层 | `rdwt.c` | 文件读写 | ✅ |
+| B 层 | `src/B/name.c` | 路径名解析（namei/iname） | ✅ |
+| B 层 | `src/B/access.c` | 权限检查 | ✅ |
+| B 层 | `src/B/open.c` | 打开文件（aopen） | ✅ |
+| B 层 | `src/B/close.c` | 关闭文件 | ✅ |
+| B 层 | `src/B/creat.c` | 创建文件 | ✅ |
+| B 层 | `src/B/delete.c` | 删除文件 | ✅ |
+| B 层 | `src/B/rdwt.c` | 文件读写（fs_read/fs_write） | ✅ |
+| B 层 | `dir.c` | 列目录、mkdir、chdir、路径管理 | ✅ |
 | B 层 | `log.c` | 用户登录/注销 | ✅ |
+| C 层 | `src/C/pwd.c` | 显示当前路径 | ✅ |
+| C 层 | `src/C/rmdir.c` | 删除空目录 | ✅ |
+| C 层 | `src/C/cat.c` | 显示文件内容 | ✅ |
+| C 层 | `src/C/clear.c` | 清屏 | ✅ |
+| C 层 | `src/C/cp.c` | 文件复制 | ✅ |
+| C 层 | `src/C/mv.c` | 文件移动/重命名 | ✅ |
+| C 层 | `src/C/ls.c` | 详细列表（ls -l） | ✅ |
+| C 层 | `src/C/find.c` | 文件搜索 | ✅ |
+| C 层 | `src/C/grep.c` | 内容搜索 | ✅ |
 | Shell | `file.c` | 交互式命令 Shell | ✅ |
 | 入口 | `main.c` | 测试模式 + 交互模式切换 | ✅ |
 

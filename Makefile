@@ -3,7 +3,7 @@ CFLAGS := -std=c99 -Wall -Wextra -Iinclude
 LDFLAGS :=
 
 TARGET := build/fs.exe
-SRCS := $(wildcard src/*.c) $(wildcard src/B/*.c)
+SRCS := $(wildcard src/*.c) $(wildcard src/B/*.c) $(wildcard src/C/*.c)
 # flatten: strip path prefix, keep only filename
 OBJS := $(addprefix build/,$(notdir $(SRCS:.c=.o)))
 
@@ -21,6 +21,10 @@ build/%.o: src/%.c | build
 
 # src/B/*.c → build/*.o
 build/%.o: src/B/%.c | build
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# src/C/*.c → build/*.o
+build/%.o: src/C/%.c | build
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
