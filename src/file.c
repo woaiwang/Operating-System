@@ -27,6 +27,7 @@ static void show_help(void) {
     printf("  creat <name>          - create a file\n");
     printf("  cat <name>            - display file content\n");
     printf("  cp <src> <dst>        - copy file\n");
+    printf("  ln <src> <dst>        - create hard link\n");
     printf("  mv <src> <dst>        - move/rename file\n");
     printf("  open <name> [r|w|a]   - open a file\n");
     printf("  close <fd>            - close a file descriptor\n");
@@ -209,6 +210,12 @@ int file_main(void) {
                 cp(arg1, arg2);
             else
                 printf("Usage: cp <src> <dst>\n");
+
+        } else if (strcmp(cmd, "ln") == 0) {
+            if (arg1[0] && arg2[0])
+                ln(arg1, arg2);
+            else
+                printf("Usage: ln <src> <dst>\n");
 
         } else if (strcmp(cmd, "mv") == 0) {
             if (arg1[0] && arg2[0])

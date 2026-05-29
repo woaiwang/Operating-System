@@ -217,6 +217,7 @@ void           rmdir(const char *name);
 void           cat(const char *name);
 void           clear(void);
 void           cp(const char *src, const char *dst);
+void           ln(const char *src, const char *dst);
 void           mv(const char *src, const char *dst);
 void           ls_long(void);
 void           find(const char *pattern);
