@@ -5,6 +5,9 @@
 void halt(void) {
     debug_log("halt: shutting down...\n");
 
+    /* Sync memory directory buffer to disk */
+    sync_dir();
+
     /* flush current directory inode to disk */
     if (cur_path_inode) {
         iput(cur_path_inode);

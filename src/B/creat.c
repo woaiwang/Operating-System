@@ -207,5 +207,8 @@ int creat(const char *name) {
     sys_ofile[i].f_off   = 0;               /* 偏移量=0（文件开头） */
     sys_ofile[i].f_inode = inode;           /* 指向文件 inode */
 
+    /* 同步目录至磁盘，防止未 chdir 就 halt 导致丢失 */
+    sync_dir();
+
     return j;                                /* 返回用户文件描述符 */
 }

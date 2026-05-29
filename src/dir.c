@@ -109,6 +109,7 @@ void mkdir(const char *name) {
     inode->di_gid    = user[user_id].u_gid;
     inode->di_addr[0] = block;
 
+    sync_dir();
     iput(inode);
 }
 
@@ -123,32 +124,11 @@ void mkdir(const char *name) {
  *    uninitialized).
  *  - namei() now returns d_ino consistently.
  */
-void chdir(const char *name) {
-    unsigned int dirid;
-    struct inode *inode;
+void sync_dir(void) {
     unsigned int block;
     int i, j, k;
 
-    dirid = namei(name);
-    if (dirid == 0) {
-        printf("\n%s does not exist\n", name);
-        return;
-    }
-
-    inode = iget(dirid);
-    if (!inode) return;
-
-    if (!(inode->di_mode & DIDIR)) {
-        printf("\n%s is not a directory\n", name);
-        iput(inode);
-        return;
-    }
-
-    if (!access(inode->i_ino, EXICUTE)) {
-        printf("\naccess denied to directory %s\n", name);
-        iput(inode);
-        return;
-    }
+    if (!cur_path_inode) return;
 
     /* compact the current directory: remove empty entries */
     j = 0;
@@ -176,6 +156,37 @@ void chdir(const char *name) {
         fwrite(&dir.direct[i], 1, BLOCKSIZ, fd);
     }
     cur_path_inode->di_size = (unsigned short)(dir.size * (DIRSIZ + 2));
+    /* cur_path_inode will be written to disk soon, but here we just update memory. 
+       Note: we should not iput() cur_path_inode here because it's still being used. */
+}
+
+void chdir(const char *name) {
+    unsigned int dirid;
+    struct inode *inode;
+    int i, j;
+
+    dirid = namei(name);
+    if (dirid == 0) {
+        printf("\n%s does not exist\n", name);
+        return;
+    }
+
+    inode = iget(dirid);
+    if (!inode) return;
+
+    if (!(inode->di_mode & DIDIR)) {
+        printf("\n%s is not a directory\n", name);
+        iput(inode);
+        return;
+    }
+
+    if (!access(inode->i_ino, EXICUTE)) {
+        printf("\naccess denied to directory %s\n", name);
+        iput(inode);
+        return;
+    }
+
+    sync_dir();
     iput(cur_path_inode);
 
     /* switch to the new directory */

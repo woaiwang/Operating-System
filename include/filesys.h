@@ -194,6 +194,7 @@ unsigned short iname(const char *name);
 unsigned int   access(unsigned int ino, unsigned int mode);
 void           _dir(void);
 void           mkdir(const char *name);
+void           sync_dir(void);
 void           chdir(const char *name);
 unsigned short aopen(const char *name, unsigned int mode);
 int            creat(const char *name);
