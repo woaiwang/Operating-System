@@ -60,6 +60,7 @@ fs> cp myfile copy.txt    # 复制文件
 fs> mv copy.txt renamed.txt # 移动/重命名文件
 fs> find "myfile"         # 搜索文件
 fs> grep "hello" myfile   # 在文件中搜索字符串
+fs> ln myfile hardlink    # 创建硬链接
 fs> rmdir testdir         # 删除空目录
 fs> clear                 # 清屏
 fs> halt                  # 退出
@@ -87,6 +88,7 @@ fs> halt                  # 退出
 | `cat <name>` | 显示文件内容 |
 | `cp <src> <dst>` | 复制文件 |
 | `mv <src> <dst>` | 移动/重命名文件 |
+| `ln <src> <dst>` | 创建硬链接 |
 | `delete <name>` | 删除文件 |
 | `find <pattern>` | 搜索文件 |
 | `grep <pattern> <file>` | 在文件中搜索字符串 |
@@ -133,7 +135,8 @@ Operating-System/
 │       ├── mv.c          # 文件移动/重命名
 │       ├── ls.c          # 详细列表（ls -l）
 │       ├── find.c        # 文件搜索
-│       └── grep.c        # 内容搜索
+│       ├── grep.c        # 内容搜索
+│       └── ln.c          # 创建硬链接
 ├── orig/                 # 原始教师参考代码（不编译，有 30 处 bug）
 ├── build/
 │   └── filesystem.img    # 磁盘镜像（运行时生成）
@@ -233,6 +236,7 @@ logout test:                   PASS
 | C 层 | `src/C/ls.c` | 详细列表（ls -l） | ✅ |
 | C 层 | `src/C/find.c` | 文件搜索 | ✅ |
 | C 层 | `src/C/grep.c` | 内容搜索 | ✅ |
+| C 层 | `src/C/ln.c` | 创建硬链接 | ✅ |
 | Shell | `file.c` | 交互式命令 Shell | ✅ |
 | 入口 | `main.c` | 测试模式 + 交互模式切换 | ✅ |
 
@@ -266,7 +270,7 @@ git commit -m "fix: ..."
 
 ## 已知问题 & 待办
 
-- [ ] `halt()` 时仅 flush 了 inode 元数据，未 flush 目录数据块（目录内容依赖 chdir 时写回的机制）
-- [ ] 部分操作（creat/delete）修改内存 dir 缓冲后，不立即写回磁盘
+- [x] `halt()` 时仅 flush 了 inode 元数据，未 flush 目录数据块（已通过 `sync_dir()` 修复）
+- [x] 部分操作（creat/delete）修改内存 dir 缓冲后，不立即写回磁盘（已修复缓存写入同步机制）
 - [ ] `aopen()` 的 append 模式实际行为是 truncate（设计意图待确认）
-- [ ] 磁盘镜像路径硬编码为 `build/filesystem.img`
+- [x] 磁盘镜像路径硬编码为 `build/filesystem.img`（已支持动态参数指定镜像路径）
